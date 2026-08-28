@@ -36,6 +36,24 @@ logger = logging.getLogger(__name__)
 # How often submit_eval(wait=True) polls the attempt file for score updates.
 _POLL_INTERVAL_SEC = 0.2
 
+_MANAGED_GIT_PATHS = (
+    ".coral_agent_id",
+    ".coral_dir",
+    ".coral_island",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".claude",
+    ".codex",
+    ".cursor",
+    ".opencode",
+    ".pi",
+    ".venv",
+)
+
+
+def _is_managed_git_path(candidate: str) -> bool:
+    return any(candidate == root or candidate.startswith(f"{root}/") for root in _MANAGED_GIT_PATHS)
+
 
 def _git_add_and_commit(message: str, workdir: str) -> str:
     """Stage all changes and commit. Returns the new commit hash."""
@@ -48,6 +66,29 @@ def _git_add_and_commit(message: str, workdir: str) -> str:
     )
     if result.returncode != 0:
         raise RuntimeError(f"git add failed: {result.stderr}")
+
+    # Git's exclude file cannot suppress changes to managed files that were
+    # already tracked by the source repository. Leave those working-tree
+    # changes intact for the runtime, but keep them out of the attempt commit.
+    staged = (
+        subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "-z"],
+            capture_output=True,
+            cwd=workdir,
+            check=True,
+        )
+        .stdout.decode("utf-8")
+        .split("\0")
+    )
+    managed = [item for item in staged if item and _is_managed_git_path(item)]
+    if managed:
+        subprocess.run(
+            ["git", "restore", "--staged", "--", *(f":(top,literal){item}" for item in managed)],
+            capture_output=True,
+            text=True,
+            cwd=workdir,
+            check=True,
+        )
 
     # Check if there's anything to commit
     status = subprocess.run(

@@ -20,6 +20,7 @@ from coral.workspace import (
     setup_worktree_env,
     write_agent_id,
 )
+from coral.workspace.repo import _clean_env, clone_or_init_repo
 
 
 def _make_config(repo_path: str, results_dir: str | None = None) -> CoralConfig:
@@ -54,6 +55,45 @@ def _git_init(d: str) -> None:
         capture_output=True,
         check=True,
     )
+
+
+def test_clone_is_self_contained_when_source_uses_alternates(tmp_path):
+    upstream = tmp_path / "upstream"
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    upstream.mkdir()
+    _git_init(str(upstream))
+
+    subprocess.run(
+        ["git", "clone", "--shared", str(upstream), str(source)],
+        capture_output=True,
+        check=True,
+    )
+    assert (source / ".git" / "objects" / "info" / "alternates").is_file()
+
+    clone_or_init_repo(source, destination)
+
+    assert not (destination / ".git" / "objects" / "info" / "alternates").exists()
+    result = subprocess.run(
+        ["git", "-C", str(destination), "fsck", "--full"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_clean_env_exports_exact_coral_cli(monkeypatch, tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    executable = bin_dir / "coral"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o755)
+    monkeypatch.setattr("coral.workspace.repo.sys.executable", str(bin_dir / "python"))
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    env = _clean_env()
+
+    assert env["CORAL_CLI"] == str(executable.resolve())
 
 
 def test_create_project_structure():

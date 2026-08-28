@@ -283,6 +283,12 @@ def _run_dir_reads(
         # under allowWrite, so agents cannot repoint the symlink.
         str((coral_dir.parent / ".sandbox").resolve()),
     ]
+    # A task may intentionally provide a read-only dependency tree through a
+    # worktree-local node_modules symlink. Seatbelt checks the resolved target,
+    # so allow that exact target rather than its parent or an arbitrary mount.
+    node_modules = worktree_path / "node_modules"
+    if node_modules.is_symlink() and node_modules.exists():
+        reads.append(str(node_modules.resolve()))
     # The grader source is surfaced to agents as <shared_dir>/grader — a
     # symlink whose target (the task's grader/ package) lives outside the
     # run dir. Allow exactly that target; the task dir's other siblings

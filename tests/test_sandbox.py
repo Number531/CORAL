@@ -225,6 +225,19 @@ def test_build_settings_coral_install_readable(tmp_path):
     assert str(Path(coral_pkg.__file__).resolve().parent) in allow_read
 
 
+def test_build_settings_reads_external_node_modules_symlink_only(tmp_path):
+    paths = _paths(tmp_path)
+    dependencies = tmp_path / "shared-dependencies" / "node_modules"
+    dependencies.mkdir(parents=True)
+    (paths["worktree_path"] / "node_modules").symlink_to(dependencies, target_is_directory=True)
+
+    settings = build_srt_settings(SandboxConfig(enabled=True), proxy_port=1, **paths)
+    allow_read = settings["filesystem"]["allowRead"]
+
+    assert str(dependencies.resolve()) in allow_read
+    assert str(dependencies.parent.resolve()) not in allow_read
+
+
 def test_build_settings_multi_island_roster(tmp_path):
     """The manager's island-mate roster drives worktree reads — including
     worktrees that don't exist on disk yet (initial start spawns agents one

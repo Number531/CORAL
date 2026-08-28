@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,12 @@ def _clean_env() -> dict[str, str]:
     reconnect/restart, causing ENOENT errors in Node.js subprocesses.
     """
     env = os.environ.copy()
+    adjacent_cli = Path(sys.executable).parent / ("coral.exe" if os.name == "nt" else "coral")
+    coral_cli = adjacent_cli if adjacent_cli.is_file() else shutil.which("coral")
+    if coral_cli:
+        # Login shells may rebuild PATH. Keep the exact CLI available to
+        # agent instructions without relying on shell startup behavior.
+        env["CORAL_CLI"] = str(Path(coral_cli).resolve())
     env.pop("VIRTUAL_ENV", None)
     for key in list(env):
         if key.startswith("VSCODE_"):
@@ -48,13 +55,14 @@ def _pin_hooks_path(dest: Path) -> None:
 def clone_or_init_repo(source: Path, dest: Path) -> Path:
     """Clone source repo to dest, or init a new one if source doesn't exist.
 
-    Uses git clone with --no-hardlinks so the clone is fully independent.
+    Uses git clone with --no-local so the clone receives its own complete
+    object store even when the source repository itself uses alternates.
     Returns the path to the cloned repo.
     """
     if (source / ".git").exists():
         logger.info(f"Cloning {source} -> {dest}")
         result = subprocess.run(
-            ["git", "clone", "--no-hardlinks", str(source), str(dest)],
+            ["git", "clone", "--no-local", str(source), str(dest)],
             capture_output=True,
             text=True,
         )
@@ -68,7 +76,7 @@ def clone_or_init_repo(source: Path, dest: Path) -> Path:
         # Bare repo — clone it
         logger.info(f"Cloning bare repo {source} -> {dest}")
         result = subprocess.run(
-            ["git", "clone", str(source), str(dest)],
+            ["git", "clone", "--no-local", str(source), str(dest)],
             capture_output=True,
             text=True,
         )

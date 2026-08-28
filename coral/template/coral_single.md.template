@@ -2,6 +2,13 @@
 
 {task_description}
 
+## CORAL CLI
+
+The exact CORAL executable is available as `CORAL_CLI`. Execute every CORAL
+command as `"$CORAL_CLI" <subcommand>` (for example,
+`"$CORAL_CLI" eval -m "description"`). Examples below abbreviate this to
+`coral`; do not rely on a login shell preserving CORAL on `PATH`.
+
 ## How This Works
 
 You are **`{agent_id}`** — that name is your handle for this run: your git branch (`coral/{agent_id}`), the `creator:` you stamp on every note and skill you write, and how you pull up your history with `coral log --agent {agent_id}`.
