@@ -244,6 +244,35 @@ def test_setup_git_exclude_survives_reset_hard():
         assert ".coral_dir" not in status
 
 
+def test_setup_git_exclude_keeps_generated_dependencies_out_of_attempts():
+    """Dependency setup stays available without polluting candidate commits."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        repo = Path(d)
+        _git_init(d)
+        setup_git_exclude(repo)
+
+        (repo / "solution.py").write_text("value = 2\n")
+        (repo / "node_modules" / "pkg").mkdir(parents=True)
+        (repo / "node_modules" / "pkg" / "index.js").write_text("module.exports = 1\n")
+        (repo / ".npm-cache").mkdir()
+        (repo / ".npm-cache" / "debug.log").write_text("cache\n")
+        (repo / "__pycache__").mkdir()
+        (repo / "__pycache__" / "solution.cpython-313.pyc").write_bytes(b"bytecode")
+
+        subprocess.run(["git", "-C", d, "add", "-A"], capture_output=True, check=True)
+        staged = subprocess.run(
+            ["git", "-C", d, "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+
+        assert staged == ["solution.py"]
+        assert (repo / "node_modules" / "pkg" / "index.js").is_file()
+        assert (repo / ".npm-cache" / "debug.log").is_file()
+        assert (repo / "__pycache__" / "solution.cpython-313.pyc").is_file()
+
+
 def test_setup_git_exclude_shared_across_worktrees():
     """Entries written from one worktree apply to all worktrees of the repo."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
