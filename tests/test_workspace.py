@@ -20,6 +20,7 @@ from coral.workspace import (
     setup_worktree_env,
     write_agent_id,
 )
+from coral.workspace.repo import _clean_env, clone_or_init_repo
 
 
 def _make_config(repo_path: str, results_dir: str | None = None) -> CoralConfig:
@@ -54,6 +55,45 @@ def _git_init(d: str) -> None:
         capture_output=True,
         check=True,
     )
+
+
+def test_clone_is_self_contained_when_source_uses_alternates(tmp_path):
+    upstream = tmp_path / "upstream"
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    upstream.mkdir()
+    _git_init(str(upstream))
+
+    subprocess.run(
+        ["git", "clone", "--shared", str(upstream), str(source)],
+        capture_output=True,
+        check=True,
+    )
+    assert (source / ".git" / "objects" / "info" / "alternates").is_file()
+
+    clone_or_init_repo(source, destination)
+
+    assert not (destination / ".git" / "objects" / "info" / "alternates").exists()
+    result = subprocess.run(
+        ["git", "-C", str(destination), "fsck", "--full"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_clean_env_exports_exact_coral_cli(monkeypatch, tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    executable = bin_dir / "coral"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o755)
+    monkeypatch.setattr("coral.workspace.repo.sys.executable", str(bin_dir / "python"))
+    monkeypatch.setenv("PATH", str(bin_dir))
+
+    env = _clean_env()
+
+    assert env["CORAL_CLI"] == str(executable.resolve())
 
 
 def test_create_project_structure():
@@ -202,6 +242,35 @@ def test_setup_git_exclude_survives_reset_hard():
         status = _run("status", "--porcelain").stdout
         assert ".coral_agent_id" not in status
         assert ".coral_dir" not in status
+
+
+def test_setup_git_exclude_keeps_generated_dependencies_out_of_attempts():
+    """Dependency setup stays available without polluting candidate commits."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        repo = Path(d)
+        _git_init(d)
+        setup_git_exclude(repo)
+
+        (repo / "solution.py").write_text("value = 2\n")
+        (repo / "node_modules" / "pkg").mkdir(parents=True)
+        (repo / "node_modules" / "pkg" / "index.js").write_text("module.exports = 1\n")
+        (repo / ".npm-cache").mkdir()
+        (repo / ".npm-cache" / "debug.log").write_text("cache\n")
+        (repo / "__pycache__").mkdir()
+        (repo / "__pycache__" / "solution.cpython-313.pyc").write_bytes(b"bytecode")
+
+        subprocess.run(["git", "-C", d, "add", "-A"], capture_output=True, check=True)
+        staged = subprocess.run(
+            ["git", "-C", d, "diff", "--cached", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+
+        assert staged == ["solution.py"]
+        assert (repo / "node_modules" / "pkg" / "index.js").is_file()
+        assert (repo / ".npm-cache" / "debug.log").is_file()
+        assert (repo / "__pycache__" / "solution.cpython-313.pyc").is_file()
 
 
 def test_setup_git_exclude_shared_across_worktrees():

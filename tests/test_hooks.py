@@ -11,6 +11,7 @@ import yaml
 
 from coral.grader.daemon import process_pending_once
 from coral.hooks.post_commit import (
+    _git_add_and_commit,
     _increment_eval_count,
     submit_eval,
 )
@@ -162,6 +163,53 @@ def test_submit_eval_no_changes():
             assert "Nothing to commit" in str(e)
         finally:
             sys.path.pop(0)
+
+
+def test_eval_commit_excludes_tracked_coral_managed_files(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", str(repo)], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@test.com"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        capture_output=True,
+        check=True,
+    )
+    (repo / ".codex").mkdir()
+    (repo / "AGENTS.md").write_text("repository instructions\n")
+    (repo / ".codex" / "config.toml").write_text("repository = true\n")
+    (repo / "solution.py").write_text("value = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "baseline"],
+        capture_output=True,
+        check=True,
+    )
+
+    (repo / "AGENTS.md").write_text("coral generated instructions\n")
+    (repo / ".codex" / "config.toml").write_text("coral = true\n")
+    (repo / "solution.py").write_text("value = 2\n")
+
+    commit_hash = _git_add_and_commit("candidate", str(repo))
+    committed = subprocess.run(
+        ["git", "-C", str(repo), "show", "--format=", "--name-only", commit_hash],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    unstaged = subprocess.run(
+        ["git", "-C", str(repo), "diff", "--name-only"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+
+    assert committed == ["solution.py"]
+    assert set(unstaged) == {".codex/config.toml", "AGENTS.md"}
 
 
 def test_eval_count_and_reflection():

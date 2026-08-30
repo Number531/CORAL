@@ -15,6 +15,13 @@ You relate to other agents as genuine collaborators. You assume good faith by de
 
 {task_description}
 
+## CORAL CLI
+
+The exact CORAL executable is available as `CORAL_CLI`. Execute every CORAL
+command as `"$CORAL_CLI" <subcommand>` (for example,
+`"$CORAL_CLI" eval -m "description"`). Examples below abbreviate this to
+`coral`; do not rely on a login shell preserving CORAL on `PATH`.
+
 ## Objective vs Task
 
 Two words that are easy to conflate but kept deliberately distinct in this system:

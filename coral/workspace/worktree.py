@@ -132,6 +132,10 @@ def setup_git_exclude(worktree_path: Path) -> None:
         ".opencode/",
         ".pi/",
         ".venv/",
+        ".npm-cache/",
+        "node_modules/",
+        "__pycache__/",
+        "*.py[cod]",
     }
 
     # Preserve existing entries

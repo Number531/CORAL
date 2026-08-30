@@ -55,6 +55,8 @@ def test_generate_coral_md_has_required_sections():
     assert ".claude/notes" in md
     assert ".claude/skills/" in md
     assert "collectively maintain and co-evolve the notes schema" in md
+    assert '"$CORAL_CLI" eval -m "description"' in md
+    assert "do not rely on a login shell" in md
 
 
 def test_generate_coral_md_without_optional_sections():
@@ -106,6 +108,7 @@ def test_generate_coral_md_single_agent():
     assert "skills" in md.lower()
     assert "Record Knowledge" in md
     assert "maintain and co-evolve this living notes schema" in md
+    assert '"$CORAL_CLI" eval -m "description"' in md
 
 
 def test_create_notes_skill_assigns_collective_schema_stewardship():
