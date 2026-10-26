@@ -13,6 +13,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PYTHON_DOTENV_DISABLED: "1"
+  UV_NO_CONFIG: "1"
+
 jobs:
   lint:
     name: Lint (ruff)
