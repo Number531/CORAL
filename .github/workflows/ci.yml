@@ -15,6 +15,7 @@ permissions:
 
 env:
   PYTHON_DOTENV_DISABLED: "1"
+  # Review this isolation if repository [tool.uv] or uv.toml config is introduced.
   UV_NO_CONFIG: "1"
 
 jobs:
